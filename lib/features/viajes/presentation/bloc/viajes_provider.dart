@@ -254,6 +254,45 @@ class ViajesProvider extends ChangeNotifier {
     }
   }
 
+  /// Inicia el GPS si hay un viaje activo (para cuando se abre la página directamente)
+  Future<void> iniciarGPSSiHayViajeActivo({required String token}) async {
+    if (_viajeActivo == null) return;
+    if (_gpsActivo) return; // Ya está corriendo
+    
+    await _iniciarGPS(token);
+  }
+
+  /// Obtiene la posición actual una sola vez (para inicialización)
+  Future<Position?> obtenerPosicionActual() async {
+    try {
+      // Verificar permisos
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          return null;
+        }
+      }
+
+      // Verificar que el servicio esté habilitado
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return null;
+      }
+
+      // Obtener posición
+      _posicionActual = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+      notifyListeners();
+      return _posicionActual;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Carga el historial de viajes finalizados
   Future<int> cargarHistorial({
     required String token,
