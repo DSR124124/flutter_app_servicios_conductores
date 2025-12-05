@@ -2,6 +2,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Repositorio para Google Maps Navigation SDK
+        maven {
+            url = uri("https://maven.google.com")
+        }
     }
 }
 

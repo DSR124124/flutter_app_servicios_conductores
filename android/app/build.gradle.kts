@@ -42,3 +42,16 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Google Maps Navigation SDK (versión 6.0.0)
+    implementation("com.google.android.libraries.navigation:navigation:6.0.0")
+}
+
+configurations {
+    implementation {
+        // Excluir Google Play Services Maps SDK para evitar duplicación
+        // (el Navigation SDK ya lo incluye)
+        exclude(group = "com.google.android.gms", module = "play-services-maps")
+    }
+}

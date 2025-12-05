@@ -24,6 +24,7 @@ dependencies:
   package_info_plus: ^8.0.0     # Info de la app instalada
   open_filex: ^4.5.0            # Abrir APK para instalar
   path_provider: ^2.1.0         # Directorio de descargas
+  flutter_background_service: ^5.0.5  # GPS en segundo plano
 
 dev_dependencies:
   flutter_test:

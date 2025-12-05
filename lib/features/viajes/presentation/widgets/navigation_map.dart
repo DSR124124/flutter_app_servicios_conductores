@@ -8,7 +8,9 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/map_styles.dart';
 import '../../../../core/services/compass_service.dart';
 import '../../../../core/services/directions_service.dart';
+import '../../../../core/services/navigation_service.dart';
 import '../../domain/entities/viaje.dart';
+import 'navigation_instruction_card.dart';
 
 /// Widget de mapa de navegación con soporte para brújula y rutas
 class NavigationMap extends StatefulWidget {
@@ -36,7 +38,11 @@ class NavigationMap extends StatefulWidget {
 class _NavigationMapState extends State<NavigationMap> {
   GoogleMapController? _mapController;
   final CompassService _compassService = CompassService();
+  final NavigationService _navigationService = NavigationService();
   StreamSubscription<double>? _compassSubscription;
+  StreamSubscription<Position>? _navigationPositionSubscription;
+  StreamSubscription<NavigationInstruction?>? _instructionSubscription;
+  StreamSubscription<List<LatLng>>? _routeSubscription;
   
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
@@ -45,6 +51,9 @@ class _NavigationMapState extends State<NavigationMap> {
   List<LatLng> _rutaPendiente = [];
   List<LatLng> _rutaRecorrida = [];
   bool _isLoadingRoute = false;
+  
+  NavigationInstruction? _currentInstruction;
+  bool _navigationActive = false;
   
   // Marcadores personalizados
   BitmapDescriptor? _busMarker;
@@ -68,9 +77,17 @@ class _NavigationMapState extends State<NavigationMap> {
   @override
   void didUpdateWidget(NavigationMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.viaje.paraderos != widget.viaje.paraderos) _cargarRutas();
-    if (oldWidget.currentPosition != widget.currentPosition) _actualizarMapa();
+    print('[MAP] didUpdateWidget - followMode: ${oldWidget.followMode} -> ${widget.followMode}, position changed: ${oldWidget.currentPosition != widget.currentPosition}');
+    if (oldWidget.viaje.paraderos != widget.viaje.paraderos) {
+      print('[MAP] Paraderos cambiaron, recargando rutas...');
+      _cargarRutas();
+    }
+    if (oldWidget.currentPosition != widget.currentPosition) {
+      print('[MAP] Posición GPS cambió, actualizando mapa...');
+      _actualizarMapa();
+    }
     if (oldWidget.followMode != widget.followMode) {
+      print('[MAP] FollowMode cambió: ${oldWidget.followMode} -> ${widget.followMode}');
       widget.followMode ? _startCompass() : _stopCompass();
     }
   }
@@ -78,20 +95,41 @@ class _NavigationMapState extends State<NavigationMap> {
   @override
   void dispose() {
     _stopCompass();
+    _stopNavigation();
     _mapController?.dispose();
     super.dispose();
   }
+  
+  void _stopNavigation() {
+    _navigationPositionSubscription?.cancel();
+    _instructionSubscription?.cancel();
+    _routeSubscription?.cancel();
+    _navigationService.stopNavigation();
+  }
 
   void _startCompass() {
-    if (!widget.followMode) return;
-    _compassService.start();
-    _compassSubscription = _compassService.headingStream.listen(_onCompassUpdate);
+    if (!widget.followMode) {
+      print('[COMPASS] No se inicia brújula: followMode = false');
+      return;
+    }
+    print('[COMPASS] Iniciando brújula...');
+    // Reducir umbral para mayor sensibilidad
+    _compassService.start(minIntervalMs: 50, minHeadingChange: 2.0);
+    _compassSubscription = _compassService.headingStream.listen(
+      _onCompassUpdate,
+      onError: (error) {
+        print('[COMPASS] Error en stream: $error');
+      },
+    );
+    print('[COMPASS] Brújula iniciada. Heading inicial: ${_compassService.currentHeading}°');
   }
 
   void _stopCompass() {
+    print('[COMPASS] Deteniendo brújula...');
     _compassSubscription?.cancel();
     _compassSubscription = null;
     _compassService.stop();
+    print('[COMPASS] Brújula detenida');
   }
 
   void _onCompassUpdate(double heading) {
@@ -99,9 +137,15 @@ class _NavigationMapState extends State<NavigationMap> {
     final target = _getTargetPosition();
     if (target == null) return;
     
+    print('[COMPASS] Heading actualizado: $heading°');
+    
+    // Actualizar la cámara con el nuevo bearing
     _mapController!.animateCamera(CameraUpdate.newCameraPosition(
       CameraPosition(target: target, zoom: 18, bearing: heading, tilt: 60),
     ));
+    
+    // Actualizar el marcador del bus para que rote
+    _actualizarMapa();
   }
 
   LatLng? _getTargetPosition() {
@@ -143,12 +187,33 @@ class _NavigationMapState extends State<NavigationMap> {
         _rutaRecorrida = [];
       }
 
-      // Ruta pendiente
-      if (pendientes.isNotEmpty) {
+      // Ruta pendiente con navegación en tiempo real
+      if (pendientes.isNotEmpty && widget.currentPosition != null) {
         final puntos = <LatLng>[];
-        if (widget.currentPosition != null) {
-          puntos.add(LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude));
-        } else if (visitados.isNotEmpty) {
+        puntos.add(LatLng(widget.currentPosition!.latitude, widget.currentPosition!.longitude));
+        for (final p in pendientes) {
+          puntos.add(LatLng(p.latitud, p.longitud));
+        }
+        
+        if (puntos.length >= 2) {
+          // Obtener ruta completa con instrucciones
+          final navResponse = await DirectionsService.getNavigationRoute(puntos);
+          
+          if (mounted && navResponse != null) {
+            _rutaPendiente = navResponse.route;
+            
+            // Iniciar navegación en tiempo real
+            await _startNavigation(navResponse);
+          } else {
+            // Fallback a ruta simple
+            final ruta = await DirectionsService.getRouteCoordinates(puntos);
+            if (mounted) _rutaPendiente = ruta.isNotEmpty ? ruta : puntos;
+          }
+        }
+      } else if (pendientes.isNotEmpty) {
+        // Sin GPS, usar ruta simple
+        final puntos = <LatLng>[];
+        if (visitados.isNotEmpty) {
           puntos.add(LatLng(visitados.last.latitud, visitados.last.longitud));
         }
         for (final p in pendientes) {
@@ -165,6 +230,56 @@ class _NavigationMapState extends State<NavigationMap> {
       if (mounted) _actualizarMapa();
     } finally {
       if (mounted) setState(() => _isLoadingRoute = false);
+    }
+  }
+  
+  Future<void> _startNavigation(NavigationResponse route) async {
+    if (_navigationActive) {
+      _navigationService.stopNavigation();
+    }
+    
+    try {
+      await _navigationService.startNavigation(route);
+      _navigationActive = true;
+      
+      // Escuchar actualizaciones de posición
+      _navigationPositionSubscription = _navigationService.positionStream.listen(
+        (position) {
+          if (mounted) {
+            setState(() {
+              // La posición se actualiza automáticamente desde widget.currentPosition
+            });
+            _actualizarMapa();
+          }
+        },
+      );
+      
+      // Escuchar instrucciones
+      _instructionSubscription = _navigationService.instructionStream.listen(
+        (instruction) {
+          if (mounted) {
+            setState(() {
+              _currentInstruction = instruction;
+            });
+          }
+        },
+      );
+      
+      // Escuchar cambios de ruta (recalculaciones)
+      _routeSubscription = _navigationService.routeStream.listen(
+        (route) {
+          if (mounted) {
+            setState(() {
+              _rutaPendiente = route;
+            });
+            _actualizarMapa();
+          }
+        },
+      );
+      
+      print('[MAP] Navegación en tiempo real iniciada');
+    } catch (e) {
+      print('[MAP] Error al iniciar navegación: $e');
     }
   }
 
@@ -212,12 +327,16 @@ class _NavigationMapState extends State<NavigationMap> {
     // Bus
     if (widget.currentPosition != null) {
       final pos = widget.currentPosition!;
+      final busRotation = widget.followMode 
+          ? _compassService.currentHeading 
+          : (pos.heading.isNaN ? 0.0 : pos.heading.toDouble());
+      print('[MAP] Actualizando marcador bus - Posición: (${pos.latitude}, ${pos.longitude}), Rotación: $busRotation°, FollowMode: ${widget.followMode}');
       markers.add(Marker(
         markerId: const MarkerId('bus'),
         position: LatLng(pos.latitude, pos.longitude),
         icon: _busMarker ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         anchor: const Offset(0.5, 0.5),
-        rotation: widget.followMode ? _compassService.currentHeading : pos.heading,
+        rotation: busRotation,
         flat: true,
         zIndex: 100,
       ));
@@ -255,6 +374,18 @@ class _NavigationMapState extends State<NavigationMap> {
           onCameraMoveStarted: () { if (widget.followMode) widget.onFollowModeChanged?.call(); },
         ),
         if (_isLoadingRoute) const _LoadingRouteIndicator(),
+        // Instrucción de navegación
+        if (_currentInstruction != null && _navigationActive)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 80,
+            left: 0,
+            right: 0,
+            child: NavigationInstructionCard(
+              instruction: _currentInstruction,
+              totalDistance: _navigationService.currentRoute?.totalDistance,
+              totalDuration: _navigationService.currentRoute?.totalDuration,
+            ),
+          ),
       ],
     );
   }

@@ -201,11 +201,12 @@ class ViajesProvider extends ChangeNotifier {
 
     _gpsActivo = true;
 
-    // Escuchar cambios de posición
+    // Escuchar cambios de posición - optimizado para navegación en tiempo real
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Actualizar cada 10 metros
+        distanceFilter: 5, // Actualizar cada 5 metros para mayor precisión
+        timeLimit: const Duration(seconds: 2), // Timeout de 2 segundos
       ),
     ).listen(
       (position) {
@@ -218,8 +219,8 @@ class ViajesProvider extends ChangeNotifier {
       },
     );
 
-    // Timer para enviar ubicación cada 10 segundos
-    _gpsTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+    // Timer para enviar ubicación cada 2 segundos (navegación en tiempo real)
+    _gpsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (_viajeActivo != null && _posicionActual != null) {
         await _enviarUbicacion(token);
       }
@@ -465,17 +466,17 @@ class ViajesProvider extends ChangeNotifier {
         nuevoEstado = 'pendiente';
       }
       
-      return Paradero(
-        idParadero: p.idParadero,
-        nombre: p.nombre,
-        latitud: p.latitud,
-        longitud: p.longitud,
-        orden: p.orden,
-        horaLlegadaEstimada: p.horaLlegadaEstimada,
+        return Paradero(
+          idParadero: p.idParadero,
+          nombre: p.nombre,
+          latitud: p.latitud,
+          longitud: p.longitud,
+          orden: p.orden,
+          horaLlegadaEstimada: p.horaLlegadaEstimada,
         horaLlegadaReal: nuevaHoraLlegada,
         visitado: nuevoVisitado,
         estadoParadero: nuevoEstado,
-      );
+        );
     }).toList();
 
     // Crear nuevo viaje con paraderos actualizados

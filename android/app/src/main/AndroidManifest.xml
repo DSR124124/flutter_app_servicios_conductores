@@ -41,6 +41,8 @@
             android:value="2" />
         
         <!-- Google Maps API Key -->
+        <!-- NOTA: Asegúrate de habilitar "Maps SDK for Android" y "Navigation SDK" 
+             en Google Cloud Console para esta API key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCnJC_qbY41ZsXjgDLhTmcSK6GkkcL-_pw" />

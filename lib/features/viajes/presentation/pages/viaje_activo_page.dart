@@ -127,8 +127,8 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
                   followMode: _followMode,
                   onCenterLocation: _centrarEnMiUbicacion,
                   onShowRoute: _centrarEnRuta,
-                ),
-              ),
+          ),
+        ),
 
               // Velocímetro
               if (posicion != null)
@@ -136,7 +136,7 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
                   left: 16,
                   bottom: 300,
                   child: SpeedIndicator(position: posicion),
-                ),
+        ),
 
               // Panel inferior
               Positioned(
@@ -150,7 +150,7 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
                   onMarcarLlegada: siguiente != null ? () => _marcarLlegadaParadero(siguiente) : null,
                   onFinalizarViaje: _finalizarViaje,
                 ),
-              ),
+            ),
             ],
           ),
         );
@@ -183,7 +183,7 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppColors.navyDark,
                 fontWeight: FontWeight.bold,
-              ),
+        ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -191,7 +191,7 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
-            ),
+          ),
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: () => context.go('/mis-viajes'),
@@ -201,8 +201,8 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
                 backgroundColor: AppColors.blueLight,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-            ),
-          ],
+          ),
+        ],
         ),
       ),
     );
@@ -332,9 +332,9 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
             Text(
               '¡Llegada registrada!',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.navyDark,
-              ),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navyDark,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -361,10 +361,10 @@ class _ViajeActivoPageState extends State<ViajeActivoPage> {
                     value: '${response.progresoViaje.toStringAsFixed(0)}%',
                     label: 'Progreso',
                     valueColor: AppColors.mintDarker,
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
         actions: [
@@ -392,20 +392,20 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: [
-        Text(
+                              children: [
+                                Text(
           value,
-          style: TextStyle(
+                                  style: TextStyle(
             fontSize: 24,
-            fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.bold,
             color: valueColor ?? AppColors.navyDark,
-          ),
-        ),
-        Text(
+                                  ),
+                                ),
+                                Text(
           label,
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-      ],
+                  ),
+                ],
     );
   }
 }
