@@ -87,9 +87,17 @@ class ParaderoModel extends Paradero {
     super.horaLlegadaEstimada,
     super.horaLlegadaReal,
     super.visitado,
+    super.estadoParadero,
   });
 
   factory ParaderoModel.fromJson(Map<String, dynamic> json) {
+    // Determinar el estado del paradero
+    String estadoParadero = json['estadoParadero'] as String? ?? 'pendiente';
+    
+    // Si tiene campo visitado pero no estadoParadero, inferir el estado
+    final bool visitado = json['visitado'] as bool? ?? 
+                          estadoParadero == 'visitado';
+    
     return ParaderoModel(
       idParadero: json['idParadero'] as int? ?? json['idPunto'] as int? ?? 0,
       nombre: json['nombre'] as String? ?? 'Paradero',
@@ -104,7 +112,8 @@ class ParaderoModel extends Paradero {
       horaLlegadaReal: json['horaLlegadaReal'] != null
           ? DateTime.tryParse(json['horaLlegadaReal'] as String)
           : null,
-      visitado: json['visitado'] as bool? ?? false,
+      visitado: visitado,
+      estadoParadero: estadoParadero,
     );
   }
 
@@ -116,7 +125,23 @@ class ParaderoModel extends Paradero {
       'longitud': longitud,
       'orden': orden,
       'visitado': visitado,
+      'estadoParadero': estadoParadero,
     };
+  }
+  
+  /// Crea una copia del paradero marcado como visitado
+  ParaderoModel copyWithVisitado() {
+    return ParaderoModel(
+      idParadero: idParadero,
+      nombre: nombre,
+      latitud: latitud,
+      longitud: longitud,
+      orden: orden,
+      horaLlegadaEstimada: horaLlegadaEstimada,
+      horaLlegadaReal: DateTime.now(),
+      visitado: true,
+      estadoParadero: 'visitado',
+    );
   }
 }
 

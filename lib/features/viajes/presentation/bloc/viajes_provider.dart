@@ -5,7 +5,10 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../data/datasources/viaje_remote_data_source.dart';
+import '../../data/models/viaje_model.dart';
 import '../../domain/entities/estadisticas.dart';
+import '../../domain/entities/llegada_paradero.dart';
+import '../../domain/entities/proximo_paradero.dart';
 import '../../domain/entities/viaje.dart';
 import '../../domain/entities/ubicacion_gps.dart';
 import '../../domain/usecases/get_mis_viajes_usecase.dart';
@@ -37,6 +40,7 @@ class ViajesProvider extends ChangeNotifier {
   List<Viaje> _viajes = [];
   List<Viaje> _historial = [];
   Viaje? _viajeActivo;
+  ProximoParadero? _proximoParadero;
   EstadisticasConductor? _estadisticas;
   bool _isLoading = false;
   String? _error;
@@ -53,12 +57,29 @@ class ViajesProvider extends ChangeNotifier {
   List<Viaje> get viajesProgramados => _viajes.where((v) => v.esProgramado).toList();
   List<Viaje> get historial => _historial;
   Viaje? get viajeActivo => _viajeActivo;
+  ProximoParadero? get proximoParadero => _proximoParadero;
   EstadisticasConductor? get estadisticas => _estadisticas;
   bool get isLoading => _isLoading;
   String? get error => _error;
   Position? get posicionActual => _posicionActual;
   bool get gpsActivo => _gpsActivo;
   bool get tieneViajeActivo => _viajeActivo != null;
+  
+  /// Obtiene el siguiente paradero pendiente del viaje activo
+  Paradero? get siguienteParadero {
+    if (_viajeActivo == null) return null;
+    // Primero buscar por estadoParadero == 'siguiente'
+    final siguiente = _viajeActivo!.paraderos.where((p) => p.esSiguiente).firstOrNull;
+    if (siguiente != null) return siguiente;
+    // Si no hay marcado como siguiente, buscar el primer no visitado
+    return _viajeActivo!.paraderos.where((p) => !p.estaVisitado).firstOrNull;
+  }
+  
+  /// Indica si todos los paraderos han sido visitados
+  bool get todosParaderosVisitados {
+    if (_viajeActivo == null) return false;
+    return _viajeActivo!.paraderos.every((p) => p.estaVisitado);
+  }
 
   /// Carga los viajes del conductor
   Future<void> cargarViajes({required String token, DateTime? fecha}) async {
@@ -232,9 +253,8 @@ class ViajesProvider extends ChangeNotifier {
       );
 
       await _enviarUbicacionUseCase(ubicacion: ubicacion, token: token);
-    } catch (e) {
+    } catch (_) {
       // Silenciar errores de envío GPS para no molestar al usuario
-      debugPrint('Error enviando GPS: $e');
     }
   }
 
@@ -348,6 +368,158 @@ class ViajesProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Obtiene el próximo paradero a visitar desde el backend
+  Future<ProximoParadero?> obtenerProximoParadero({required String token}) async {
+    if (_viajeActivo == null) {
+      _error = 'No hay viaje activo';
+      notifyListeners();
+      return null;
+    }
+
+    try {
+      _proximoParadero = await _dataSource.fetchProximoParadero(
+        idViaje: _viajeActivo!.idViaje,
+        token: token,
+      );
+      notifyListeners();
+      return _proximoParadero;
+    } on AppException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _error = AppException.unknown().message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Marca la llegada a un paradero durante el viaje activo.
+  /// El backend valida que los paraderos se marquen en orden secuencial.
+  Future<LlegadaParaderoResponse?> marcarLlegadaParadero({
+    required int idParadero,
+    required String token,
+  }) async {
+    if (_viajeActivo == null) {
+      _error = 'No hay viaje activo';
+      notifyListeners();
+      return null;
+    }
+
+    try {
+      // Usar coordenadas actuales si están disponibles
+      final response = await _dataSource.marcarLlegadaParadero(
+        idViaje: _viajeActivo!.idViaje,
+        idParadero: idParadero,
+        token: token,
+        latitud: _posicionActual?.latitude,
+        longitud: _posicionActual?.longitude,
+      );
+
+      // Actualizar el paradero como visitado y marcar el siguiente
+      _actualizarEstadosParaderos(idParadero, response);
+
+      notifyListeners();
+      return response;
+    } on AppException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return null;
+    } catch (_) {
+      _error = AppException.unknown().message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Actualiza los estados de los paraderos después de marcar llegada
+  void _actualizarEstadosParaderos(int idParaderoVisitado, LlegadaParaderoResponse response) {
+    if (_viajeActivo == null) return;
+
+    final paraderos = _viajeActivo!.paraderos;
+    final siguienteOrden = response.ordenParadero + 1;
+    
+    // Crear lista actualizada de paraderos con nuevos estados
+    final paraderosActualizados = paraderos.map((p) {
+      String nuevoEstado;
+      bool nuevoVisitado = p.visitado;
+      DateTime? nuevaHoraLlegada = p.horaLlegadaReal;
+      
+      if (p.idParadero == idParaderoVisitado) {
+        // Este paradero fue visitado
+        nuevoEstado = 'visitado';
+        nuevoVisitado = true;
+        nuevaHoraLlegada = response.fechaLlegada;
+      } else if (p.orden == siguienteOrden && !response.esUltimoParadero) {
+        // Este es el siguiente paradero
+        nuevoEstado = 'siguiente';
+      } else if (p.orden < response.ordenParadero || p.visitado) {
+        // Ya fue visitado anteriormente
+        nuevoEstado = 'visitado';
+        nuevoVisitado = true;
+      } else {
+        // Todavía pendiente
+        nuevoEstado = 'pendiente';
+      }
+      
+      return Paradero(
+        idParadero: p.idParadero,
+        nombre: p.nombre,
+        latitud: p.latitud,
+        longitud: p.longitud,
+        orden: p.orden,
+        horaLlegadaEstimada: p.horaLlegadaEstimada,
+        horaLlegadaReal: nuevaHoraLlegada,
+        visitado: nuevoVisitado,
+        estadoParadero: nuevoEstado,
+      );
+    }).toList();
+
+    // Crear nuevo viaje con paraderos actualizados
+    _viajeActivo = Viaje(
+      idViaje: _viajeActivo!.idViaje,
+      idRuta: _viajeActivo!.idRuta,
+      nombreRuta: _viajeActivo!.nombreRuta,
+      idBus: _viajeActivo!.idBus,
+      placaBus: _viajeActivo!.placaBus,
+      modeloBus: _viajeActivo!.modeloBus,
+      fechaInicioProgramada: _viajeActivo!.fechaInicioProgramada,
+      fechaFinProgramada: _viajeActivo!.fechaFinProgramada,
+      fechaInicioReal: _viajeActivo!.fechaInicioReal,
+      fechaFinReal: _viajeActivo!.fechaFinReal,
+      estado: _viajeActivo!.estado,
+      paraderos: paraderosActualizados,
+    );
+    
+    // Actualizar el próximo paradero
+    if (response.esUltimoParadero) {
+      _proximoParadero = ProximoParadero(
+        idViaje: _viajeActivo!.idViaje,
+        paraderosVisitados: response.paraderosVisitados,
+        totalParaderos: response.totalParaderos,
+        todosVisitados: true,
+        mensaje: 'Todos los paraderos visitados. Puedes finalizar el viaje.',
+      );
+    } else {
+      // Buscar el siguiente paradero en la lista actualizada
+      final siguiente = paraderosActualizados.where((p) => p.estadoParadero == 'siguiente').firstOrNull;
+      if (siguiente != null) {
+        _proximoParadero = ProximoParadero(
+          idViaje: _viajeActivo!.idViaje,
+          idParadero: siguiente.idParadero,
+          ordenParadero: siguiente.orden,
+          nombreParadero: siguiente.nombre,
+          latitud: siguiente.latitud,
+          longitud: siguiente.longitud,
+          paraderosVisitados: response.paraderosVisitados,
+          totalParaderos: response.totalParaderos,
+          todosVisitados: false,
+          mensaje: 'Siguiente paradero en la ruta.',
+        );
+      }
     }
   }
 

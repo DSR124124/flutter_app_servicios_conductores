@@ -59,6 +59,8 @@ class Paradero {
   final DateTime? horaLlegadaEstimada;
   final DateTime? horaLlegadaReal;
   final bool visitado;
+  /// Estado del paradero: "visitado", "siguiente", "pendiente"
+  final String estadoParadero;
 
   const Paradero({
     required this.idParadero,
@@ -69,6 +71,16 @@ class Paradero {
     this.horaLlegadaEstimada,
     this.horaLlegadaReal,
     this.visitado = false,
+    this.estadoParadero = 'pendiente',
   });
+
+  /// Indica si es el siguiente paradero a visitar
+  bool get esSiguiente => estadoParadero == 'siguiente';
+  
+  /// Indica si ya fue visitado
+  bool get estaVisitado => estadoParadero == 'visitado' || visitado;
+  
+  /// Indica si está pendiente
+  bool get estaPendiente => estadoParadero == 'pendiente';
 }
 

@@ -1,3 +1,5 @@
+import '../entities/llegada_paradero.dart';
+import '../entities/proximo_paradero.dart';
 import '../entities/viaje.dart';
 import '../entities/ubicacion_gps.dart';
 
@@ -24,10 +26,18 @@ abstract class ViajeRepository {
     required String token,
   });
 
-  /// Marca llegada a un paradero
-  Future<void> marcarLlegadaParadero({
+  /// Marca llegada a un paradero (debe ser en orden secuencial)
+  Future<LlegadaParaderoResponse> marcarLlegadaParadero({
     required int idViaje,
     required int idParadero,
+    required String token,
+    double? latitud,
+    double? longitud,
+  });
+
+  /// Obtiene el próximo paradero a visitar en un viaje
+  Future<ProximoParadero> obtenerProximoParadero({
+    required int idViaje,
     required String token,
   });
 

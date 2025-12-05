@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants/app_config.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../domain/entities/estadisticas.dart';
+import '../../domain/entities/llegada_paradero.dart';
+import '../../domain/entities/proximo_paradero.dart';
 import '../../domain/entities/ubicacion_gps.dart';
 import '../models/viaje_model.dart';
 
@@ -195,24 +197,40 @@ class ViajeRemoteDataSource {
   }
 
   /// Marca llegada a un paradero
-  Future<void> marcarLlegadaParadero({
+  Future<LlegadaParaderoResponse> marcarLlegadaParadero({
     required int idViaje,
     required int idParadero,
     required String token,
+    double? latitud,
+    double? longitud,
   }) async {
     try {
+      // Preparar body con coordenadas si están disponibles
+      Map<String, dynamic>? body;
+      if (latitud != null && longitud != null) {
+        body = {
+          'latitud': latitud,
+          'longitud': longitud,
+        };
+      }
+
       final response = await _client
           .post(
             Uri.parse(
               '${AppConfig.backendServiciosBaseUrl}/api/conductor/viaje/$idViaje/paradero/$idParadero/llegada',
             ),
             headers: _buildHeaders(token),
+            body: body != null ? jsonEncode(body) : null,
           )
           .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode != 200) {
-        _handleError(response);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return LlegadaParaderoResponse.fromJson(data);
       }
+
+      _handleError(response);
+      throw AppException('Error al marcar llegada');
     } on SocketException catch (_, st) {
       throw AppException.network(st);
     } on TimeoutException catch (_, st) {
@@ -276,6 +294,40 @@ class ViajeRemoteDataSource {
 
       _handleError(response);
       throw AppException('Error al obtener estadísticas');
+    } on SocketException catch (_, st) {
+      throw AppException.network(st);
+    } on TimeoutException catch (_, st) {
+      throw AppException.timeout(st);
+    } on AppException {
+      rethrow;
+    } catch (_, st) {
+      throw AppException.unknown(st);
+    }
+  }
+
+  /// Obtiene el próximo paradero a visitar en un viaje
+  /// El backend garantiza que los paraderos se visitan en orden
+  Future<ProximoParadero> fetchProximoParadero({
+    required int idViaje,
+    required String token,
+  }) async {
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              '${AppConfig.backendServiciosBaseUrl}/api/conductor/viaje/$idViaje/proximo-paradero',
+            ),
+            headers: _buildHeaders(token),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return ProximoParadero.fromJson(data);
+      }
+
+      _handleError(response);
+      throw AppException('Error al obtener próximo paradero');
     } on SocketException catch (_, st) {
       throw AppException.network(st);
     } on TimeoutException catch (_, st) {

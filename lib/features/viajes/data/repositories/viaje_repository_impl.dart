@@ -1,3 +1,5 @@
+import '../../domain/entities/llegada_paradero.dart';
+import '../../domain/entities/proximo_paradero.dart';
 import '../../domain/entities/viaje.dart';
 import '../../domain/entities/ubicacion_gps.dart';
 import '../../domain/repositories/viaje_repository.dart';
@@ -51,14 +53,29 @@ class ViajeRepositoryImpl implements ViajeRepository {
   }
 
   @override
-  Future<void> marcarLlegadaParadero({
+  Future<LlegadaParaderoResponse> marcarLlegadaParadero({
     required int idViaje,
     required int idParadero,
     required String token,
+    double? latitud,
+    double? longitud,
   }) {
     return _remoteDataSource.marcarLlegadaParadero(
       idViaje: idViaje,
       idParadero: idParadero,
+      token: token,
+      latitud: latitud,
+      longitud: longitud,
+    );
+  }
+
+  @override
+  Future<ProximoParadero> obtenerProximoParadero({
+    required int idViaje,
+    required String token,
+  }) {
+    return _remoteDataSource.fetchProximoParadero(
+      idViaje: idViaje,
       token: token,
     );
   }

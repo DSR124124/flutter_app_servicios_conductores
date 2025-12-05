@@ -12,7 +12,7 @@ class DirectionsService {
   /// Obtiene la ruta de navegación óptima entre múltiples paraderos
   /// Usa una sola llamada a Directions API con waypoints
   static Future<List<LatLng>> getRouteCoordinates(List<LatLng> paraderos) async {
-    if (paraderos.length < 2) return paraderos;
+    if (paraderos.length < 2) return [];
 
     final origin = paraderos.first;
     final destination = paraderos.last;
@@ -47,14 +47,14 @@ class DirectionsService {
         if (status == 'OK' && data['routes'] != null && (data['routes'] as List).isNotEmpty) {
           final route = data['routes'][0];
           final encodedPolyline = route['overview_polyline']['points'];
-          return _decodePolyline(encodedPolyline);
+          final points = _decodePolyline(encodedPolyline);
+          return points;
         }
       }
     } catch (_) {
-      // Silenciar errores - el caller usará fallback
+      // Silenciar errores
     }
 
-    // Si falla, retornar lista vacía (el caller usará fallback)
     return [];
   }
 
