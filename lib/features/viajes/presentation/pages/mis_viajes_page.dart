@@ -54,6 +54,206 @@ class _MisViajesPageState extends State<MisViajesPage> {
     }
   }
 
+  Future<void> _mostrarDialogoIniciarViaje(Viaje viaje) async {
+    final viajesProvider = context.read<ViajesProvider>();
+    
+    // Verificar si ya hay un viaje activo
+    if (viajesProvider.tieneViajeActivo) {
+      final viajeActivo = viajesProvider.viajeActivo!;
+      _mostrarDialogoViajeActivo(viajeActivo);
+      return;
+    }
+    
+    // Verificar que el viaje esté programado
+    if (!viaje.esProgramado) {
+      AppToast.show(
+        context,
+        message: 'Este viaje no está disponible para iniciar',
+        type: ToastType.error,
+      );
+      return;
+    }
+    
+    // Mostrar diálogo de confirmación
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.directions_bus, color: AppColors.success, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Iniciar Recorrido')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '¿Deseas iniciar este recorrido?',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.navyDark.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.route, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          viaje.nombreRuta,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.directions_bus, size: 16, color: AppColors.blueLight),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Bus: ${viaje.placaBus}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (viaje.paraderos.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on, size: 16, color: AppColors.mintDarker),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${viaje.paraderos.length} paraderos',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('Iniciar'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm == true) {
+      await _iniciarViaje(viaje);
+    }
+  }
+  
+  void _mostrarDialogoViajeActivo(Viaje viajeActivo) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Viaje en Curso')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Ya tienes un viaje activo. Debes finalizar el viaje actual antes de iniciar uno nuevo.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.route, size: 16, color: AppColors.success),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          viajeActivo.nombreRuta,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/viaje-activo');
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('Ver Viaje Activo'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _iniciarViaje(Viaje viaje) async {
     final authProvider = context.read<AuthProvider>();
     final viajesProvider = context.read<ViajesProvider>();
@@ -208,11 +408,14 @@ class _MisViajesPageState extends State<MisViajesPage> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: InkWell(
+        onTap: puedeIniciar ? () => _mostrarDialogoIniciarViaje(viaje) : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Header con estado
             Row(
               children: [
@@ -306,20 +509,31 @@ class _MisViajesPageState extends State<MisViajesPage> {
             // Botón de iniciar
             if (puedeIniciar) ...[
               const SizedBox(height: 16),
-              SizedBox(
+              Container(
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _iniciarViaje(viaje),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('INICIAR VIAJE'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.play_arrow, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'INICIAR VIAJE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );
