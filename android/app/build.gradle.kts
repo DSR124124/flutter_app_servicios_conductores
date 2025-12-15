@@ -13,6 +13,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Necesario para algunas librerías como flutter_local_notifications
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -46,6 +48,7 @@ flutter {
 dependencies {
     // Google Maps Navigation SDK (versión 6.0.0)
     implementation("com.google.android.libraries.navigation:navigation:6.0.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
 
 configurations {

@@ -1,7 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Permisos de internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Permisos de notificaciones (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     
     <!-- Permisos de ubicación -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -17,6 +21,12 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+
+        <!-- Desactivar BootReceiver de flutter_background_service para evitar
+             arranques de Foreground Service no permitidos en Android 12+ -->
+        <receiver
+            android:name="id.flutter.flutter_background_service.BootReceiver"
+            tools:node="remove" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,6 +49,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Ajustar tipo de Foreground Service para flutter_background_service en Android 14+ -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            tools:node="merge"
+            tools:replace="android:foregroundServiceType"
+            android:foregroundServiceType="dataSync" />
         
         <!-- Google Maps API Key -->
         <!-- NOTA: Asegúrate de habilitar "Maps SDK for Android" y "Navigation SDK" 

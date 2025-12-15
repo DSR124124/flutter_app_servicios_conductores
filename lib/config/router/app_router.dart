@@ -3,8 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/auth/presentation/bloc/auth_provider.dart';
+import '../../features/auth/domain/usecases/get_current_user_usecase.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import 'package:http/http.dart' as http;
+import '../../features/notificaciones/data/datasources/notificaciones_remote_data_source.dart';
+import '../../features/notificaciones/data/repositories/notificaciones_repository_impl.dart';
+import '../../features/notificaciones/domain/usecases/get_mis_notificaciones_usecase.dart';
+import '../../features/notificaciones/domain/usecases/marcar_notificacion_leida_usecase.dart';
+import '../../features/notificaciones/presentation/bloc/notificaciones_provider.dart';
+import '../../features/notificaciones/presentation/pages/notificaciones_page.dart';
 import '../../features/viajes/data/repositories/viaje_repository_impl.dart';
 import '../../features/viajes/domain/usecases/get_mis_viajes_usecase.dart';
 import '../../features/viajes/domain/usecases/get_viaje_activo_usecase.dart';
@@ -51,6 +59,15 @@ class AppRouter {
           path: '/home',
           name: 'home',
           builder: (context, state) => const HomePage(),
+        ),
+        GoRoute(
+          path: '/notificaciones',
+          name: 'notificaciones',
+          builder: (context, state) => _wrapWithNotificacionesProvider(
+            NotificacionesPage(
+              initialNotificacionId: state.extra is int ? state.extra as int : null,
+            ),
+          ),
         ),
         GoRoute(
           path: '/mis-viajes',
@@ -131,6 +148,29 @@ class AppRouter {
         finalizarViajeUseCase: FinalizarViajeUseCase(repository),
         enviarUbicacionUseCase: EnviarUbicacionUseCase(repository),
       ),
+      child: child,
+    );
+  }
+
+  /// Wrappea un widget con el NotificacionesProvider
+  static Widget _wrapWithNotificacionesProvider(Widget child) {
+    final remoteDataSource = NotificacionesRemoteDataSourceImpl(
+      client: http.Client(),
+    );
+    final repository =
+        NotificacionesRepositoryImpl(remoteDataSource: remoteDataSource);
+    final getMisNotificacionesUseCase = GetMisNotificacionesUseCase(repository);
+    final marcarLeidaUseCase = MarcarNotificacionLeidaUseCase(repository);
+
+    return ChangeNotifierProvider(
+      create: (context) {
+        final authRepository = context.read<AuthProvider>().repository;
+        return NotificacionesProvider(
+          getMisNotificacionesUseCase: getMisNotificacionesUseCase,
+          getCurrentUserUseCase: GetCurrentUserUseCase(authRepository),
+          marcarNotificacionLeidaUseCase: marcarLeidaUseCase,
+        );
+      },
       child: child,
     );
   }

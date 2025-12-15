@@ -118,9 +118,19 @@ class _HomeViewState extends State<_HomeView> {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textoHeader,
-        title: Text(_currentPageIndex == 0 
-            ? AppStrings.dashboardTitle 
-            : AppStrings.menuMiPerfil),
+        title: Text(
+          _currentPageIndex == 0
+              ? AppStrings.dashboardTitle
+              : AppStrings.menuMiPerfil,
+        ),
+        actions: [
+          if (_currentPageIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.notifications_none),
+              tooltip: 'Notificaciones',
+              onPressed: () => context.push('/notificaciones'),
+            ),
+        ],
       ),
       drawer: _buildDrawer(context, user),
       body: _currentPageIndex == 0
