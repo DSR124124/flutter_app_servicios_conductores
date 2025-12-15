@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../auth/domain/usecases/get_current_user_usecase.dart';
@@ -6,6 +8,7 @@ import '../../domain/entities/notificacion.dart';
 import '../../domain/usecases/get_mis_notificaciones_usecase.dart';
 import '../../domain/usecases/marcar_notificacion_leida_usecase.dart';
 import '../../data/datasources/notificaciones_ws_service.dart';
+import '../../../../main.dart';
 
 class NotificacionesProvider extends ChangeNotifier {
   final GetMisNotificacionesUseCase getMisNotificacionesUseCase;
@@ -28,6 +31,8 @@ class NotificacionesProvider extends ChangeNotifier {
 
   List<Notificacion> get notificaciones => _filtradas;
   bool get isLoading => _isLoading;
+  int get unreadCount =>
+      _todas.where((n) => n.leida == false).length;
   bool _disposed = false;
 
   Future<void> cargarNotificaciones(BuildContext context) async {
@@ -37,11 +42,15 @@ class NotificacionesProvider extends ChangeNotifier {
 
       final user = await getCurrentUserUseCase();
       if (user == null) {
-        AppToast.show(
-          context,
-          message: 'No se pudo obtener el usuario actual',
-          type: ToastType.error,
-        );
+        try {
+          AppToast.show(
+            context,
+            message: 'No se pudo obtener el usuario actual',
+            type: ToastType.error,
+          );
+        } catch (_) {
+          // Context puede ser inválido, ignorar
+        }
         return;
       }
 
@@ -53,26 +62,96 @@ class NotificacionesProvider extends ChangeNotifier {
 
       // Conectar WebSocket (solo si no estaba conectado)
       if (!_wsService.isConnected) {
+        debugPrint('Conectando WebSocket de notificaciones...');
         _wsService.conectar(
           token: user.token,
           onNueva: (Notificacion n) async {
+            debugPrint('Nueva notificación recibida por WebSocket: ${n.titulo}');
             // Añadir a la lista en memoria
             _todas.insert(0, n);
             _aplicarFiltros();
+
+            // Mostrar notificación local en primer plano
+            await _mostrarNotificacionLocal(n);
+            
+            // Notificar a los listeners
+            if (!_disposed) {
+              notifyListeners();
+            }
           },
         );
+        debugPrint('WebSocket conectado: ${_wsService.isConnected}');
+      } else {
+        debugPrint('WebSocket ya estaba conectado');
       }
     } catch (e) {
-      AppToast.show(
-        context,
-        message: 'Error al cargar notificaciones',
-        type: ToastType.error,
-      );
+      try {
+        AppToast.show(
+          context,
+          message: 'Error al cargar notificaciones',
+          type: ToastType.error,
+        );
+      } catch (_) {
+        // Context puede ser inválido, ignorar
+      }
     } finally {
       _isLoading = false;
       if (!_disposed) {
         notifyListeners();
       }
+    }
+  }
+
+  Future<void> _mostrarNotificacionLocal(Notificacion n) async {
+    try {
+      // Verificar permisos de notificaciones
+      final permissionStatus = await Permission.notification.status;
+      if (!permissionStatus.isGranted) {
+        debugPrint('Permisos de notificaciones no otorgados');
+        // Intentar solicitar permisos
+        final result = await Permission.notification.request();
+        if (!result.isGranted) {
+          debugPrint('Usuario rechazó permisos de notificaciones');
+          return;
+        }
+      }
+
+      final String enviadoPor =
+          n.creadorNombre ?? n.nombreAplicacion ?? 'Nettalco Conductores';
+      final String previewMensaje =
+          n.mensaje.length > 80 ? '${n.mensaje.substring(0, 80)}...' : n.mensaje;
+
+      // Usar el ID de la notificación
+      final notificationId = n.idNotificacion;
+
+      final androidDetails = AndroidNotificationDetails(
+        'nett_notif_channel',
+        'Notificaciones Nettalco',
+        channelDescription: 'Notificaciones de la app Nettalco Conductores',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        styleInformation: BigTextStyleInformation(
+          '$previewMensaje\n\nEnviado por $enviadoPor',
+          contentTitle: n.titulo,
+        ),
+        enableVibration: true,
+        playSound: true,
+      );
+
+      final details = NotificationDetails(android: androidDetails);
+
+      await flutterLocalNotificationsPlugin.show(
+        notificationId,
+        n.titulo,
+        n.mensaje,
+        details,
+        payload: notificationId.toString(),
+      );
+      
+      debugPrint('Notificación mostrada: ${n.titulo}');
+    } catch (e) {
+      debugPrint('Error al mostrar notificación local: $e');
     }
   }
 

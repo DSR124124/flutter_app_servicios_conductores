@@ -65,10 +65,8 @@ class AppRouter {
         GoRoute(
           path: '/notificaciones',
           name: 'notificaciones',
-          builder: (context, state) => _wrapWithNotificacionesProvider(
-            NotificacionesPage(
-              initialNotificacionId: state.extra is int ? state.extra as int : null,
-            ),
+          builder: (context, state) => NotificacionesPage(
+            initialNotificacionId: state.extra is int ? state.extra as int : null,
           ),
         ),
         GoRoute(
@@ -159,26 +157,5 @@ class AppRouter {
     );
   }
 
-  /// Wrappea un widget con el NotificacionesProvider
-  static Widget _wrapWithNotificacionesProvider(Widget child) {
-    final remoteDataSource = NotificacionesRemoteDataSourceImpl(
-      client: http.Client(),
-    );
-    final repository =
-        NotificacionesRepositoryImpl(remoteDataSource: remoteDataSource);
-    final getMisNotificacionesUseCase = GetMisNotificacionesUseCase(repository);
-    final marcarLeidaUseCase = MarcarNotificacionLeidaUseCase(repository);
-
-    return ChangeNotifierProvider(
-      create: (context) {
-        final authRepository = context.read<AuthProvider>().repository;
-        return NotificacionesProvider(
-          getMisNotificacionesUseCase: getMisNotificacionesUseCase,
-          getCurrentUserUseCase: GetCurrentUserUseCase(authRepository),
-          marcarNotificacionLeidaUseCase: marcarLeidaUseCase,
-        );
-      },
-      child: child,
-    );
-  }
+  // _wrapWithNotificacionesProvider ya no se usa; el provider es global en main.dart
 }

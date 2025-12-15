@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../features/auth/data/datasources/auth_local_data_source.dart';
 import '../../features/notificaciones/data/datasources/notificaciones_ws_service.dart';
@@ -82,36 +84,59 @@ void onStartNotificacionesService(ServiceInstance service) async {
   wsService.conectar(
     token: token,
     onNueva: (Notificacion n) async {
-      final String enviadoPor =
-          n.creadorNombre ?? n.nombreAplicacion ?? 'Nettalco Conductores';
-      final String previewMensaje =
-          n.mensaje.length > 80 ? '${n.mensaje.substring(0, 80)}...' : n.mensaje;
+      try {
+        debugPrint('Background: Nueva notificación recibida: ${n.titulo}');
+        
+        // Verificar permisos de notificaciones
+        final permissionStatus = await Permission.notification.status;
+        if (!permissionStatus.isGranted) {
+          debugPrint('Background: Permisos de notificaciones no otorgados');
+          final result = await Permission.notification.request();
+          if (!result.isGranted) {
+            debugPrint('Background: Usuario rechazó permisos de notificaciones');
+            return;
+          }
+        }
 
-      final androidDetails = AndroidNotificationDetails(
-        'nett_notif_channel',
-        'Notificaciones Nettalco',
-        channelDescription: 'Notificaciones de la app Nettalco Conductores',
-        importance: Importance.high,
-        priority: Priority.high,
-        // Icono pequeño de la app
-        icon: '@mipmap/ic_launcher',
-        styleInformation: BigTextStyleInformation(
-          '$previewMensaje\n\nEnviado por $enviadoPor',
-          contentTitle: n.titulo,
-        ),
-      );
+        final String enviadoPor =
+            n.creadorNombre ?? n.nombreAplicacion ?? 'Nettalco Conductores';
+        final String previewMensaje =
+            n.mensaje.length > 80 ? '${n.mensaje.substring(0, 80)}...' : n.mensaje;
 
-      final details = NotificationDetails(android: androidDetails);
+        final androidDetails = AndroidNotificationDetails(
+          'nett_notif_channel',
+          'Notificaciones Nettalco',
+          channelDescription: 'Notificaciones de la app Nettalco Conductores',
+          importance: Importance.high,
+          priority: Priority.high,
+          // Icono pequeño de la app
+          icon: '@mipmap/ic_launcher',
+          styleInformation: BigTextStyleInformation(
+            '$previewMensaje\n\nEnviado por $enviadoPor',
+            contentTitle: n.titulo,
+          ),
+          enableVibration: true,
+          playSound: true,
+        );
 
-      await localPlugin.show(
-        n.idNotificacion ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        n.titulo,
-        n.mensaje,
-        details,
-        payload: n.idNotificacion.toString(),
-      );
+        final details = NotificationDetails(android: androidDetails);
+
+        await localPlugin.show(
+          n.idNotificacion,
+          n.titulo,
+          n.mensaje,
+          details,
+          payload: n.idNotificacion.toString(),
+        );
+        
+        debugPrint('Background: Notificación mostrada exitosamente');
+      } catch (e) {
+        debugPrint('Background: Error al mostrar notificación: $e');
+      }
     },
   );
+  
+  debugPrint('Background: WebSocket conectado para notificaciones');
 }
 
 

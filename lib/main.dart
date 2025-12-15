@@ -3,10 +3,17 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
 
 import 'config/router/app_router.dart';
 import 'config/theme/app_theme.dart';
 import 'features/auth/presentation/bloc/auth_provider.dart';
+import 'features/auth/domain/usecases/get_current_user_usecase.dart';
+import 'features/notificaciones/data/datasources/notificaciones_remote_data_source.dart';
+import 'features/notificaciones/data/repositories/notificaciones_repository_impl.dart';
+import 'features/notificaciones/domain/usecases/get_mis_notificaciones_usecase.dart';
+import 'features/notificaciones/domain/usecases/marcar_notificacion_leida_usecase.dart';
+import 'features/notificaciones/presentation/bloc/notificaciones_provider.dart';
 import 'core/services/notificaciones_background_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -78,8 +85,31 @@ class NettalcoConductoresApp extends StatelessWidget {
     final authProvider = AuthProvider();
     AppRouter.initialize(authProvider);
 
-    return ChangeNotifierProvider.value(
-      value: authProvider,
+    // Configurar dependencias de notificaciones
+    final remoteDataSource = NotificacionesRemoteDataSourceImpl(
+      client: http.Client(),
+    );
+    final notifRepository =
+        NotificacionesRepositoryImpl(remoteDataSource: remoteDataSource);
+    final getMisNotificacionesUseCase =
+        GetMisNotificacionesUseCase(notifRepository);
+    final marcarLeidaUseCase =
+        MarcarNotificacionLeidaUseCase(notifRepository);
+
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<NotificacionesProvider>(
+          create: (context) {
+            final authRepo = authProvider.repository;
+            return NotificacionesProvider(
+              getMisNotificacionesUseCase: getMisNotificacionesUseCase,
+              getCurrentUserUseCase: GetCurrentUserUseCase(authRepo),
+              marcarNotificacionLeidaUseCase: marcarLeidaUseCase,
+            );
+          },
+        ),
+      ],
       child: MaterialApp.router(
         title: 'Nettalco Conductores',
         debugShowCheckedModeBanner: false,

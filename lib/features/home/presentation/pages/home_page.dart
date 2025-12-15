@@ -11,6 +11,7 @@ import '../../../app_update/presentation/bloc/app_update_provider.dart';
 import '../../../app_update/presentation/widgets/app_update_dialog.dart';
 import '../../../auth/presentation/bloc/auth_provider.dart';
 import '../../../auth/presentation/pages/perfil_page.dart';
+import '../../../notificaciones/presentation/bloc/notificaciones_provider.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -41,6 +42,17 @@ class _HomeViewState extends State<_HomeView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForUpdates();
       _loadInstalledVersion();
+      // Cargar notificaciones una vez al entrar a Home
+      try {
+        final notifProvider = context.read<NotificacionesProvider>();
+        notifProvider.cargarNotificaciones(context).catchError((error) {
+          // Manejar errores de carga de notificaciones sin crashear la app
+          debugPrint('Error al cargar notificaciones: $error');
+        });
+      } catch (e) {
+        // si el provider no está disponible por alguna razón, ignorar
+        debugPrint('Provider de notificaciones no disponible: $e');
+      }
     });
   }
 
@@ -124,12 +136,57 @@ class _HomeViewState extends State<_HomeView> {
               : AppStrings.menuMiPerfil,
         ),
         actions: [
-          if (_currentPageIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.notifications_none),
-              tooltip: 'Notificaciones',
-              onPressed: () => context.push('/notificaciones'),
+          if (_currentPageIndex == 0) ...[
+            Builder(
+              builder: (context) {
+                try {
+                  return Consumer<NotificacionesProvider>(
+                    builder: (context, notifProvider, _) {
+                      final unread = notifProvider.unreadCount;
+                      return IconButton(
+                        icon: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.notifications_none),
+                            if (unread > 0)
+                              Positioned(
+                                right: -2,
+                                top: -2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.redAccent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    unread.toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        tooltip: 'Notificaciones',
+                        onPressed: () => context.push('/notificaciones'),
+                      );
+                    },
+                  );
+                } catch (e) {
+                  // Si el provider no está disponible, mostrar solo el ícono sin badge
+                  debugPrint('Error al acceder a NotificacionesProvider: $e');
+                  return IconButton(
+                    icon: const Icon(Icons.notifications_none),
+                    tooltip: 'Notificaciones',
+                    onPressed: () => context.push('/notificaciones'),
+                  );
+                }
+              },
             ),
+          ],
         ],
       ),
       drawer: _buildDrawer(context, user),

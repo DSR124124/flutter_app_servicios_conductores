@@ -15,8 +15,31 @@ class NotificacionesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Verificar si el provider está disponible de forma segura
+    NotificacionesProvider? provider;
+    try {
+      provider = Provider.of<NotificacionesProvider>(context, listen: false);
+    } catch (e) {
+      debugPrint('NotificacionesProvider no disponible: $e');
+    }
+
+    if (provider == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Notificaciones'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const Center(
+          child: Text('Error: Provider de notificaciones no disponible'),
+        ),
+      );
+    }
+
     return ChangeNotifierProvider<NotificacionesProvider>.value(
-      value: Provider.of<NotificacionesProvider>(context, listen: false),
+      value: provider,
       child: _NotificacionesView(initialNotificacionId: initialNotificacionId),
     );
   }
@@ -36,47 +59,102 @@ class _NotificacionesViewState extends State<_NotificacionesView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<NotificacionesProvider>();
-      provider.cargarNotificaciones(context).then((_) {
-        final id = widget.initialNotificacionId;
-        if (id == null) return;
+      if (!mounted) return;
+      
+      try {
+        final provider = context.read<NotificacionesProvider>();
+        provider.cargarNotificaciones(context).then((_) {
+          if (!mounted) return;
+          
+          final id = widget.initialNotificacionId;
+          if (id == null) return;
 
-        Notificacion? notif;
-        for (final n in provider.notificaciones) {
-          if (n.idNotificacion == id) {
-            notif = n;
-            break;
+          Notificacion? notif;
+          for (final n in provider.notificaciones) {
+            if (n.idNotificacion == id) {
+              notif = n;
+              break;
+            }
           }
-        }
 
-        if (notif != null) {
-          provider.marcarComoLeida(context, notif);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => NotificacionDetallePage(notificacion: notif!),
-            ),
-          );
-        }
-      });
+          if (notif != null && mounted) {
+            provider.marcarComoLeida(context, notif);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => NotificacionDetallePage(notificacion: notif!),
+              ),
+            );
+          }
+        }).catchError((error) {
+          debugPrint('Error al cargar notificaciones: $error');
+        });
+      } catch (e) {
+        debugPrint('Error al acceder a NotificacionesProvider: $e');
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<NotificacionesProvider>();
+    NotificacionesProvider provider;
+    try {
+      provider = context.watch<NotificacionesProvider>();
+    } catch (e) {
+      debugPrint('Error al acceder a NotificacionesProvider en build: $e');
+      return Scaffold(
+        appBar: AppBar(title: const Text('Notificaciones')),
+        body: const Center(
+          child: Text('Error al cargar notificaciones'),
+        ),
+      );
+    }
+    
+    final unread = provider.unreadCount;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mis notificaciones'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Mis notificaciones'),
+            if (unread > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  unread.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Nueva notificación',
             onPressed: () async {
-              final created = await context.push('/notificaciones/nueva');
-              if (created == true && mounted) {
-                provider.cargarNotificaciones(context);
+              try {
+                final created = await context.push('/notificaciones/nueva');
+                if (created == true && mounted) {
+                  try {
+                    provider.cargarNotificaciones(context);
+                  } catch (e) {
+                    debugPrint('Error al recargar notificaciones: $e');
+                  }
+                }
+              } catch (e) {
+                debugPrint('Error al navegar a crear notificación: $e');
               }
             },
           ),
@@ -96,17 +174,29 @@ class _NotificacionesViewState extends State<_NotificacionesView> {
                       notificacion: notif,
                       selected: false,
                       onTap: () {
-                        provider.marcarComoLeida(context, notif);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => NotificacionDetallePage(
-                              notificacion: notif,
+                        try {
+                          provider.marcarComoLeida(context, notif);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NotificacionDetallePage(
+                                notificacion: notif,
+                              ),
                             ),
-                          ),
-                        ).then((_) {
-                          provider.cargarNotificaciones(context);
-                        });
+                          ).then((_) {
+                            if (mounted) {
+                              try {
+                                provider.cargarNotificaciones(context);
+                              } catch (e) {
+                                debugPrint('Error al recargar notificaciones: $e');
+                              }
+                            }
+                          }).catchError((error) {
+                            debugPrint('Error al navegar a detalle: $error');
+                          });
+                        } catch (e) {
+                          debugPrint('Error al marcar como leída: $e');
+                        }
                       },
                     );
                   },
