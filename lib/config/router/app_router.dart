@@ -11,8 +11,10 @@ import '../../features/notificaciones/data/datasources/notificaciones_remote_dat
 import '../../features/notificaciones/data/repositories/notificaciones_repository_impl.dart';
 import '../../features/notificaciones/domain/usecases/get_mis_notificaciones_usecase.dart';
 import '../../features/notificaciones/domain/usecases/marcar_notificacion_leida_usecase.dart';
+import '../../features/notificaciones/domain/usecases/crear_notificacion_usecase.dart';
 import '../../features/notificaciones/presentation/bloc/notificaciones_provider.dart';
 import '../../features/notificaciones/presentation/pages/notificaciones_page.dart';
+import '../../features/notificaciones/presentation/pages/crear_notificacion_page.dart';
 import '../../features/viajes/data/repositories/viaje_repository_impl.dart';
 import '../../features/viajes/domain/usecases/get_mis_viajes_usecase.dart';
 import '../../features/viajes/domain/usecases/get_viaje_activo_usecase.dart';
@@ -68,6 +70,11 @@ class AppRouter {
               initialNotificacionId: state.extra is int ? state.extra as int : null,
             ),
           ),
+        ),
+        GoRoute(
+          path: '/notificaciones/nueva',
+          name: 'notificacion-nueva',
+          builder: (context, state) => const CrearNotificacionPage(),
         ),
         GoRoute(
           path: '/mis-viajes',

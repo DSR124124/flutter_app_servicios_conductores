@@ -1,5 +1,6 @@
 import '../../domain/entities/notificacion.dart';
 import '../../domain/repositories/notificaciones_repository.dart';
+import '../dtos/crear_notificacion_dto.dart';
 import '../datasources/notificaciones_remote_data_source.dart';
 
 class NotificacionesRepositoryImpl implements NotificacionesRepository {
@@ -27,6 +28,17 @@ class NotificacionesRepositoryImpl implements NotificacionesRepository {
     return remoteDataSource.marcarComoLeida(
       idNotificacion: idNotificacion,
       idUsuario: idUsuario,
+      token: token,
+    );
+  }
+
+  @override
+  Future<void> crearNotificacion({
+    required CrearNotificacionDto dto,
+    required String token,
+  }) {
+    return remoteDataSource.crearNotificacion(
+      dto: dto,
       token: token,
     );
   }

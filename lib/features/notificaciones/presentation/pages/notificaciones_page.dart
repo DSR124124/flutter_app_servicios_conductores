@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../config/theme/app_colors.dart';
@@ -68,6 +69,18 @@ class _NotificacionesViewState extends State<_NotificacionesView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis notificaciones'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Nueva notificación',
+            onPressed: () async {
+              final created = await context.push('/notificaciones/nueva');
+              if (created == true && mounted) {
+                provider.cargarNotificaciones(context);
+              }
+            },
+          ),
+        ],
       ),
       body: provider.isLoading
           ? const Center(child: AppLoadingSpinner())
@@ -98,12 +111,6 @@ class _NotificacionesViewState extends State<_NotificacionesView> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: navegar a página de creación de notificación
-        },
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }
