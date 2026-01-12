@@ -20,7 +20,7 @@ class AppConfig {
   
   /// Versión actual de la aplicación (debe coincidir con pubspec.yaml)
   /// NOTA: Esta constante solo se usa como fallback. La versión real se obtiene de PackageInfo
-  static const String appVersion = '1.0.1';
+  static const String appVersion = '1.0.2';
   
   /// Endpoint para obtener la versión actual de la app desde la BD
   /// Formato: /api/version-app/{codigoProducto}
