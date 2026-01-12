@@ -301,6 +301,26 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
   }
 
   Future<Directory> _getDownloadDirectory() async {
+    // En Android, usar el directorio de descargas públicas para poder instalar APKs
+    if (Platform.isAndroid) {
+      try {
+        // Intentar obtener el directorio de descargas públicas
+        final directory = await getExternalStorageDirectory();
+        if (directory != null) {
+          // Usar el directorio Downloads dentro del almacenamiento externo
+          final downloadsDir = Directory('${directory.parent.path}/Download');
+          if (!await downloadsDir.exists()) {
+            await downloadsDir.create(recursive: true);
+          }
+          return downloadsDir;
+        }
+      } catch (e) {
+        // Si falla, usar el directorio de documentos de la app
+        final directory = await getApplicationDocumentsDirectory();
+        return directory;
+      }
+    }
+    // Para otras plataformas, usar el directorio temporal
     return await getTemporaryDirectory();
   }
 

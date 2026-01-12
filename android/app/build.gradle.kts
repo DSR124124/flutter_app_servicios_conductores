@@ -23,7 +23,11 @@ android {
     
     // Suprimir warnings de opciones obsoletas de Java (viene de plugins de Flutter)
     tasks.withType<JavaCompile>().configureEach {
-        options.compilerArgs.add("-Xlint:-options")
+        options.compilerArgs.addAll(listOf(
+            "-Xlint:-options",
+            "-Xlint:-deprecation"
+        ))
+        options.isFork = true
     }
 
     defaultConfig {
